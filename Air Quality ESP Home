@@ -1,0 +1,92 @@
+# Sun platform to track sunset and sunrise
+sun:
+  latitude: 45.0  # Set your latitude
+  longitude: 25.0  # Set your longitude
+
+# Time configuration for syncing time
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+# Configure the DHT22 sensor and the MQ-2 gas sensor
+sensor:
+  - platform: dht
+    pin: GPIO23
+    temperature:
+      name: "Temperatura Camera"
+    humidity:
+      name: "Umiditate Camera"
+    update_interval: 30s
+    model: DHT22
+
+  - platform: adc
+    pin: GPIO34
+    name: "Nivel Gaz MQ-2"
+    id: nivel_gaz_mq2
+    update_interval: 10s
+    filters:
+      - multiply: 3.3
+
+# Configure the relay for the central heating and the light
+switch:
+  - platform: gpio
+    name: "Releu Centrala Termica"
+    pin: GPIO22
+    inverted: true
+    id: releu_centrala
+
+  - platform: gpio
+    name: "Lumina Camera"
+    pin: GPIO19
+    inverted: true
+    id: lumina_camera
+
+# Configure the motion sensor (PIR) and the gas detection template binary sensor
+binary_sensor:
+  - platform: gpio
+    pin: GPIO21
+    name: "Senzor de Miscare"
+    device_class: motion
+    on_press:
+      then:
+        - if:
+            condition:
+              - sun.is_below_horizon
+            then:
+              - switch.turn_on: lumina_camera
+    on_release:
+      then:
+        - delay: 180s
+        - switch.turn_off: lumina_camera
+
+  - platform: template
+    name: "Gaz Detectat"
+    lambda: |-
+      if (id(nivel_gaz_mq2).state > 2.0) {
+        return true;
+      } else {
+        return false;
+      }
+    on_press:
+      - output.turn_on: buzzer
+    on_release:
+      - output.turn_off: buzzer
+
+  - platform: gpio
+    pin: GPIO25
+    name: "Senzor de Flacara"
+    device_class: safety
+    filters:
+      - delayed_on: 10ms
+    on_press:
+      then:
+        - output.turn_on: buzzer
+    on_release:
+      then:
+        - output.turn_off: buzzer
+
+# Configure the buzzer
+output:
+  - platform: gpio
+    pin: GPIO18
+    id: buzzer
